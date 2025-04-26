@@ -1,0 +1,126 @@
+org: jaysp
+
+service: orderService
+
+plugins:
+  - serverless-step-functions
+
+provider:
+  name: aws
+  runtime: nodejs22.x
+  region: us-east-1
+  environment:
+      DYNAMO_TABLE: Orders
+      SQS_QUEUE_URL: https://sqs.us-east-1.amazonaws.com/601148044385/OrderQueue
+      PRODUCT_API_BASE: https://1zc8rcyuw7.execute-api.us-east-1.amazonaws.com
+
+  httpApi:
+    cors:
+      allowedOrigins:
+        - "*" 
+      allowedMethods:
+        - GET
+        - POST
+        - OPTIONS
+      allowedHeaders:
+        - Content-Type
+        - Authorization
+    authorizers:
+      myCognitoAuth:
+        identitySource: $request.header.Authorization 
+      
+        issuerUrl: https://cognito-idp.us-east-1.amazonaws.com/us-east-1_zMfocDf1m
+        
+        audience:
+        - hjbcskenvkesnv_dummy_client_id
+          #Cognito App Client ID
+        
+
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamoDb:PutItem
+        - dynamoDb:UpdateItem
+        - sqs:SendMessage
+        - sqs:ReceiveMessage
+        - sqs:DeleteMessage
+     
+      Resource: 
+        - Fn::GetAtt: [OrdersTable, Arn] 
+        - Fn::GetAtt: [OrderQueue, Arn] 
+        
+      
+    - Effect: Allow
+      Action:
+        - states:StartExecution
+      Resource: arn:aws:states:us-east-1:601148044385:stateMachine:OrderProcessingStateMachine
+    - Effect: Allow
+      Action:
+        - kms:Decrypt
+      Resource: "*"  
+    - Effect: Allow
+      Action:
+        - ses:SendEmail
+      Resource: arn:aws:ses:us-east-1:601148044385:identity/jayspprajapati24@gmail.com
+  
+resources:
+  Resources:
+    OrdersTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: Orders
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH 
+    OrderQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: OrderQueue  
+       
+functions:
+  placeOrder:
+    handler: handlers/placeOrder.placeOrder
+    environment:
+      STEP_FUNCTION_ARN:
+        Ref: OrderProcessingStateMachine
+    events:
+      - httpApi:
+          path: /create-order
+          method: post
+          authorizer:
+            name: myCognitoAuth
+
+  processOrder:
+    handler: handlers/processOrder.processOrder
+    events:
+      - sqs:
+          arn: 
+            Fn::GetAtt: [OrderQueue, Arn] 
+
+  updateOrderStatus:
+     handler: handlers/updateOrderStatus.handler
+
+  
+
+stepFunctions: #Defining Step Functions
+  stateMachines:
+    OrderProcessingStateMachine: 
+      name: OrderProcessingStateMachine  
+      definition: 
+        Comment: "Order processing with status update." 
+        StartAt: UpdateStatusToProcessing
+        States: 
+          UpdateStatusToProcessing:
+            Type: Task
+            Resource:
+              Fn::GetAtt: [updateOrderStatus, Arn]
+            Next: NotifyUser
+          NotifyUser:
+            Type: Pass 
+            Result: "User Notified"
+            End: true 
+

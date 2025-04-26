@@ -1,0 +1,148 @@
+org: jaysp
+
+service: productService
+
+provider:
+  name: aws
+  runtime: nodejs22.x
+  region: us-east-1
+
+  environment:
+    BUCKET_NAME: product-images-jaysp-jy952466-new
+    DYNAMO_TABLE: Products
+    SNS_TOPIC_ARN: 
+      Ref: ProductCleanupTopic
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - s3:PutObject 
+      Resource: arn:aws:s3:::product-images-jaysp-jy952466-new/*
+    - Effect: Allow
+      Action:
+        - dynamoDb:PutItem
+        - dynamoDb:UpdateItem 
+        - dynamoDb:Scan 
+        - dynamoDb:DeleteItem 
+      Resource: arn:aws:dynamodb:us-east-1:601148044385:table/Products
+    - Effect: Allow
+      Action:
+        - sns:Publish
+      Resource: 
+        Ref: ProductCleanupTopic
+
+  httpApi:
+    cors:
+      allowedOrigins:
+        - "*" 
+      allowedMethods:
+        - GET
+        - POST
+        - OPTIONS
+      allowedHeaders:
+        - Content-Type
+        - Authorization
+    authorizers:
+      myCognitoAuth: 
+        identitySource: $request.header.Authorization 
+        issuerUrl: https://cognito-idp.us-east-1.amazonaws.com/us-east-1_zMfocDf1m
+        audience:
+          - 3obmq9m3nc8p1a6lnmcrkf6rgg #Cognito App client ID
+
+resources:
+  Resources:
+    ProductImagesBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: product-images-jaysp-jy952466-new
+        CorsConfiguration: # CORS(Cross-origin resource sharing)
+          CorsRules:
+            - AllowedOrigins:
+                - "*" 
+              AllowedMethods:
+                - PUT  
+              AllowedHeaders:  
+                - "*"
+        NotificationConfiguration: 
+          LambdaConfigurations:
+            - Event: s3:ObjectCreated:Put
+              Function:
+                Fn::GetAtt:
+                  - UpdateProductImageLambdaFunction
+                  - Arn
+        PublicAccessBlockConfiguration:  # DISABLE BLOCK PUBLIC ACCESS
+          BlockPublicAcls: false
+          IgnorePublicAcls: false
+          BlockPublicPolicy: false
+          RestrictPublicBuckets: false
+    BannerImagesBucketPolicy:  # ALLOW PUBLIC READ ACCESS
+      Type: AWS::S3::BucketPolicy
+      Properties:
+        Bucket: product-images-jaysp-jy952466-new
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal: "*"
+              Action: "s3:GetObject"
+              Resource: "arn:aws:s3:::product-images-jaysp-jy952466-new/*"
+    S3ToLambdaPermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        FunctionName:
+          Fn::GetAtt:
+            - UpdateProductImageLambdaFunction
+            - Arn
+        Action: lambda:InvokeFunction
+        Principal: s3.amazonaws.com
+        SourceArn: arn:aws:s3:::product-images-jaysp-jy952466-new
+
+    ProductTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: Products
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH   
+
+
+    ProductCleanupTopic:
+      Type: AWS::SNS::Topic
+      Properties:
+        TopicName: ProductCleanupTopic  
+    ProductCleanupSubscription:
+      Type: AWS::SNS::Subscription
+      Properties:
+        TopicArn: 
+          Ref: ProductCleanupTopic
+        Protocol: email
+        Endpoint: jayspprajapati24@gmail.com  
+
+
+functions:
+  getUploadUrl:
+    handler: handlers/getUploadUrl.getUploadUrl
+    events:
+      - httpApi:
+          path: /get-upload-url
+          method: post
+          authorizer:
+            name: myCognitoAuth
+  getApprovedProducts:
+    handler: handlers/getApprovedProducts.getApprovedProducts
+    events:
+      - httpApi:
+          path: /approve-products
+          method: get
+  updateProductImage:
+    handler: handlers/updateProductImage.updateProductImage
+
+  cleanupProducts:
+    handler: handlers/cleanupProducts.cleanupProducts
+    events:
+      - schedule: rate(5 hours) #Runs every 5 hours   
+
+

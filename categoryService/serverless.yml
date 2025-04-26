@@ -1,0 +1,136 @@
+org: jaysp
+
+service: categoryService
+
+provider:
+  name: aws
+  runtime: nodejs22.x
+  region: us-east-1
+  httpApi:
+    cors:
+      allowedOrigins:
+        - "*" 
+      allowedMethods:
+        - GET
+        - POST
+        - OPTIONS
+      allowedHeaders:
+        - Content-Type
+        - Authorization
+  environment:
+    BUCKET_NAME: category-images-jaysp-jy952466-new
+    DYNAMO_TABLE: Categories
+    SNS_TOPIC_ARN: arn:aws:sns:us-east-1:601148044385:CategoryCleanupTopic
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - s3:PutObject 
+      Resource: arn:aws:s3:::category-images-jaysp-jy952466-new/*
+    - Effect: Allow
+      Action:
+        - dynamoDb:PutItem
+        - dynamoDb:UpdateItem 
+        - dynamoDb:Scan 
+        - dynamoDb:DeleteItem 
+      Resource: arn:aws:dynamodb:us-east-1:601148044385:table/Categories
+    - Effect: Allow
+      Action:
+        - sns:Publish
+      Resource: arn:aws:sns:us-east-1:601148044385:CategoryCleanupTopic
+
+resources:
+  Resources:
+    CategoryImagesBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: category-images-jaysp-jy952466-new
+        CorsConfiguration: #CORS(Cross-origin resource sharing)
+          CorsRules:
+            - AllowedOrigins:
+                - "*"  
+              AllowedMethods:
+                - PUT  
+              AllowedHeaders:  
+                - "*"
+        NotificationConfiguration:  
+          LambdaConfigurations:
+            - Event: s3:ObjectCreated:Put
+              Function:
+                Fn::GetAtt:
+                  - UpdateCategoryImageLambdaFunction
+                  - Arn
+        PublicAccessBlockConfiguration:  # DISABLE BLOCK PUBLIC ACCESS
+          BlockPublicAcls: false
+          IgnorePublicAcls: false
+          BlockPublicPolicy: false
+          RestrictPublicBuckets: false
+    BannerImagesBucketPolicy:  # ALLOW PUBLIC READ ACCESS
+      Type: AWS::S3::BucketPolicy
+      Properties:
+        Bucket: category-images-jaysp-jy952466-new
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal: "*"
+              Action: "s3:GetObject"
+              Resource: "arn:aws:s3:::category-images-jaysp-jy952466-new/*"
+    S3ToLambdaPermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        FunctionName:
+          Fn::GetAtt:
+            - UpdateCategoryImageLambdaFunction
+            - Arn
+        Action: lambda:InvokeFunction
+        Principal: s3.amazonaws.com
+        SourceArn: arn:aws:s3:::category-images-jaysp-jy952466-new
+    
+    CategoryTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: Categories
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: fileName
+            AttributeType: S
+        KeySchema:
+          - AttributeName: fileName
+            KeyType: HASH 
+
+
+
+    CategoryCleanupTopic:
+      Type: AWS::SNS::Topic
+      Properties:
+        TopicName: CategoryCleanupTopic   
+    CategoryCleanupSubscription:
+      Type: AWS::SNS::Subscription
+      Properties:
+        TopicArn: 
+          Ref: CategoryCleanupTopic
+        Protocol: email
+        Endpoint: jayspprajapati24@gmail.com
+
+functions:
+  getUploadUrl:
+    handler: handlers/getUploadUrl.getUploadUrl
+    events:
+      - httpApi:
+          path: /upload-url
+          method: post
+
+  getAllCategories:
+    handler: handlers/getAllCategories.getAllCategories
+    events:
+      - httpApi:
+          path: /categories
+          method: get
+
+  updateCategoryImage:
+    handler: handlers/updateCategoryImage.updateCategoryImage
+   
+  cleanupCategories:
+    handler: handlers/cleanupCategories.cleanupCategories
+    events:
+      - schedule: rate(5 hours) #Runs every 5 hours
