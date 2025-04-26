@@ -29,8 +29,6 @@ This project implements a backend for an e-commerce application using a microser
 - **productService**: Allows authenticated users to upload products with images, includes an approval process, and cleans up outdated products, using S3, DynamoDB, and SNS.
 - **orderService**: Processes customer orders with SQS for queueing, Step Functions for workflow management, and SES for email notifications, storing data in DynamoDB.
 
-This project is ideal for learning about serverless architectures, AWS services, and microservices design.
-
 ## Architecture
 
 ### Architecture Diagram
