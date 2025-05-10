@@ -33,6 +33,8 @@ This project implements a backend for an e-commerce application using a microser
 
 ### Architecture Diagram
 
+![Term_Project_Architecture](https://github.com/user-attachments/assets/409b763b-270e-4011-8fd7-6df8354a08dd)
+
 > [Microservices Architecture Diagram (Draw.io Link)](https://drive.google.com/file/d/1xqJjNxmAhRVTLqHqVCNo3ypW5Y93okYr/view?usp=sharing)
 
 The application follows a microservices architecture, with each service handling a specific domain:
@@ -355,36 +357,7 @@ To deploy the project:
 
 ## Usage
 
-Here are examples of how to interact with the APIs using `curl`:
-
-1. **Sign Up a User**:
-
-   ```sh
-   curl -X POST https://jamibbyjdk.execute-api.us-east-1.amazonaws.com/sign-up \
-   -d '{"email": "jayspprajapati24@gmail.com", "fullName": "Jay S Prajapati", "password": "Hello@123"}'
-   ```
-
-2. **Upload a Banner**:
-
-   - Get the upload URL:
-     ```sh
-     curl -X POST https://8i8i5i1lo7.execute-api.us-east-1.amazonaws.com/upload-url \
-     -d '{"fileName": "baner1.png", "fileType": "image/png"}'
-     ```
-   - Upload the file (replace `<upload-url>` with the returned URL):
-     ```sh
-     curl -X PUT -T baner1.png "<upload-url>"
-     ```
-
-3. **Place an Order**:
-   - Sign in to get a JWT token, then:
-     ```sh
-     curl -X POST https://50pfyl8vea.execute-api.us-east-1.amazonaws.com/create-order \
-     -H "Authorization: Bearer <JWT_TOKEN>" \
-     -d '{"id": "df38e02c-2adf-4e3a-948f-c6d7bc02d767", "quantity": 30}'
-     ```
-
-Explore each service's section for more endpoint details.
+Explore each service's section for all endpoint details.
 
 ## Contributing
 
